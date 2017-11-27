@@ -1,0 +1,6 @@
+ve/read PlaneNumber,nStrips,StripLenght,StripWidth S2--.dat 15x,(2I2,2F10.5) ! /PHI/(*)
+zone 3 3
+v/draw PlaneNumber
+v/draw nStrips
+v/draw StripLenght
+v/draw StripWidth

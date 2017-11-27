@@ -1,0 +1,16 @@
+# RPC Positioning Description File
+# ============================
+# positions are in mm
+#
+#    ChType ChNum ChYoff NumPlanes
+rpc   BMSE    6    1752.5   8   
+#    planeNumber  Xoff 	   Zoff 
+plane 	1	  0.0     332.6     
+plane 	2	146.8       0.0  
+plane 	3	146.4       0.0     
+plane 	4	  0.0     331.8   
+plane 	5	  0.0     330.4     
+plane 	6	141.4       0.0  
+plane 	7	142.3       0.0     
+plane 	8	  0.0     330.8  
+# end

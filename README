@@ -1,0 +1,123 @@
+*********
+* Calib *
+********* 
+
+Description of top directory files:
+**********************************
+
+Makefile          a customizable Makefile
+MakeLinux         Makefile customized for atlas linux cluster
+calgeo.cxx        a test job for the detector geometrical description
+calgeo.input      its datacards 
+calib.cxx         THE MAIN PROGRAM
+calib.datacards   THE PROGRAM DATACARDS (to select number of events, tasks...)
+calib.doxy        datacards for documentation with doxygen
+input             list of data files
+geofiles          list of geometry files to be loaded. There are some examples
+                  for standard configurations: 
+			geofiles_BUNDLE
+			geofiles_CALYPSO
+			geofiles_H8_2001
+			geofiles_MOD0
+			geofiles_RPC
+			geofiles_RPCRM3
+rtfiles           list of rt-relations files
+t0files           list of t0-files
+eltxfiles         list of electronics mapping files
+xxxxx.datacards   task specific options:
+			CalAlign.datacards
+			CalAutoCal.datacards
+			CalEffi.datacards
+			CalMonitor.datacards
+			CalRayTrace.datacards
+			CalRecon.datacards
+			CalResol.datacards
+			CalT0Det.datacards                                                                        
+
+Directories:
+************
+Code:
+control: the framework and the task base class 
+database: classes handling geometry and calibration constants
+detector: classes for the data and data collections of various detectors
+event: the event handler singleton and the subevent 
+       (base class for all data collections)
+his: interface to histogramming package (HBOOK)
+recon: reconstructors and tracks
+tools: utilities
+user: the user defined tasks
+
+Other stuff:
+display: PAW based tools for displaying events from display.dump ouput files
+doc: documentation in various formats
+data: data files for geometry and calibrations, now organized in 
+subdirectories for various standard configurations 
+
+**************************************
+* HOW TO BUILD/RUN YOUR APPLICATION  *
+**************************************
+*provide in user directory an header and an implementation file for your task
+     e.g RPCAnalysis.h and RPCAnalysis.cxx
+*use gmake (or gmake -f MakeLinux) from the top directory to build calib 
+executable
+*select your application in calib.datacards, if not present modify 
+control/CalibrationManager.cxx (CalibrationManager::jobOpt) accordingly
+*configure the task datacards if any (e.g. RPCAnalysis.datacards)
+*insert the input file name in file input
+*insert the geometry file(s) name(s) for your setup in file geofiles
+*for MDT users: insert the electronics, t0 and rt file names in eltxfiles, 
+t0files and rtfiles 
+(I'm afraid these must actually be present also for non MDT users... but can
+contain any default file)
+*type calib to run the program (no default output but the histogram file
+calib.hbook is provided)
+
+********************************************************************
+***********************  v4r2 release notes: *********************** 
+********************************************************************
+
+what changed with respect to v4r1
+_________________________________
+
+1. new setup to describe MDT chambers in X5 and decode minidaq events 
+   (DataFormat 5 in calib.datacards)  by  Stephanie Zimmermann et al. 
+   
+2. possibility to cut on track quality using the chi2 probability rather than 
+   the chi2 ( for the time being implemented 
+   only in task CalAutoCal by defining the precompiler macro PROBCUT) 
+   by Evelin Meoni 
+
+3. change in RT related classes to include an additional parameter 
+   in the "validity range" allowing to define different RT relations for the
+   two sides of the wire (more generally for different angular regions with
+   respect to the wire). For the use of this new feature see task CalResol. 
+   NB this change implies a change in the header of all the rt files!
+   by Domizia Orestano, Mario Antonelli and Saverio Braccini 
+   
+4. possibility to use for the geometrical description the AMDB data files
+   (GeometryFormat 1 in calib.datacards) 
+   by Evelin Meoni and Fabrizio Petrucci
+
+And:
+
+5. improved error handling, error messages and extension of the maximum 
+   filename length to be used for database and input files 
+   (Stephanie Zimmermann)
+
+6. minor fixes in track fit for few pathological events 
+   (Paolo Branchini and Mauro Iodice)
+
+7. few changes in roma 3 lab decoding 
+   (Domizia Orestano)
+
+Plus:
+
+8. calib.job to run interactively on lxplus and in batch on lxbatch at Cern, by
+   Manuela Cirilli. Please read the instructions in calib.job.
+   Don't forget to make it executable with chmod before using it.
+
+9. For a smaller calib executable remove -static from LKOPT in the Makefile
+   and use calib.job (or set by hand 
+   LD_LIBRARY_PATH to /afs/cern.ch/sw/lhcxx/specific/lnx/CLHEP/new/lib for
+   your interactive session) (Manuela Cirilli)
+

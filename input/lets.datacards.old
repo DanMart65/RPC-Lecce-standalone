@@ -1,0 +1,22 @@
+# max number of events per run
+nev 200
+# events to be skipped
+#nsk 2000 
+# events to be dumped for the display
+#display 100
+# Time Window
+TimeWindow 0 465
+# End
+# relative path for output files (hbook, log, etc.)
+OutputRelativePath ..
+# global debug flag (for decoding and reconstruction)
+Debug 0  
+# data format type
+# 7 LEcce Test Station format
+DataFormat 7
+# available tasks and their calling sequence number 
+RPCSlowMonitor 0       # RPC Slow Control Monitor
+RPCMonitor     1       # RPC Monitor
+RPCTBAnalize   2       # RPC Test Station task
+#RPCDisplay     3        # RPC Display
+End

@@ -1,0 +1,503 @@
+#include "math.h"
+#include "recon/RPCTrack.h"
+#include "detector/RPCCluster.h"
+#include "recon/RPCReconstructor.h"
+#include "his/HisFile.h" 
+#include "event/EventHandler.h"
+#include <algorithm> 
+
+float LineFunc(float & x);
+
+RPCTrack::RPCTrack(std::vector<RPCCluster *> hitList){
+   MemoryChecker* Memory = MemoryChecker::getMemoryChecker();
+   Memory->increase();                                                         
+   m_hitList=hitList;
+   m_aZ = 1.;
+   m_bZ = 1.;
+   m_aX = 1.;
+   m_bX = 1.;
+}
+
+RPCTrack::RPCTrack(int score, std::vector<RPCCluster *> hitList){
+   MemoryChecker* Memory = MemoryChecker::getMemoryChecker();
+   Memory->increase();                                                         
+   m_hitList=hitList;
+   m_aZ = 1.;
+   m_bZ = 1.;
+   m_aX = 1.;
+   m_bX = 1.;
+   m_score = score;
+}  
+
+RPCTrack::RPCTrack(std::vector<RPCCluster *> hitList, double a[2], double b[2]){
+   MemoryChecker* Memory = MemoryChecker::getMemoryChecker();
+   Memory->increase();                                                         
+   m_hitList=hitList;
+   m_aZ = a[0];
+   m_bZ = b[0];
+   m_aX = a[1];
+   m_bX = b[1];
+}  
+
+RPCTrack::RPCTrack(RPCTrack const & tk1) {
+   MemoryChecker* Memory = MemoryChecker::getMemoryChecker();
+   Memory->increase();                                                         
+   m_hitList=tk1.hitList();
+   m_aZ = tk1.aZ();
+   m_aZErr = tk1.aZErr();
+   m_bZ = tk1.bZ();
+   m_bZErr = tk1.bZErr();
+   m_abZCorr = tk1.abZCorr();
+   m_aX = tk1.aX();
+   m_aXErr = tk1.aXErr();
+   m_bX = tk1.bX();
+   m_bXErr = tk1.bXErr();
+   m_abXCorr = tk1.abXCorr();
+   m_chisquareX = tk1.chisquareX();
+   m_chisquareZ = tk1.chisquareZ();
+   m_score = tk1.score();
+}
+
+RPCTrack::~RPCTrack(){
+   MemoryChecker* Memory = MemoryChecker::getMemoryChecker();
+   Memory->decrease();                                                         
+}
+/*********************************************************************
+ *
+ * Fit RPC Tracks
+ * 
+ *********************************************************************/
+
+void  RPCTrack::fitTrack(){
+
+// Store hit list and make iterator
+    std::vector<RPCCluster *>::iterator ih; 
+    std::vector<RPCCluster *> hitList=m_hitList;
+//    std::cout << "RPCTrack::fitTrack:  sto fittando" << std::endl;
+
+    double a[2],b[2];
+     a[0]=0;
+     b[0]=0;
+     a[1]=0;
+     b[1]=0;
+
+// divide the hit list in two separate ones according to orientation
+    std::vector<RPCCluster *>::iterator ix; 
+    std::vector<RPCCluster *> XhitList;   
+    std::vector<RPCCluster *>::iterator iy; 
+    std::vector<RPCCluster *> ZhitList;
+    
+    for( ih=m_hitList.begin(); ih!=m_hitList.end(); ++ih) {
+// list of x coordinates
+      if( (*ih)->stripDir() == 0){
+         XhitList.push_back(*ih);
+      } 
+// list of z coordinates      
+      else if ( (*ih)->stripDir() == 2){
+         ZhitList.push_back(*ih);
+      }
+    }
+//    std::cout << " XList :" << XhitList.size() << " ZList : " << ZhitList.size() << std::endl;
+    if(XhitList.size() >= 3){ 
+      linefit(XhitList,0,&m_aX,&m_bX,&m_aXErr,&m_bXErr,&m_chisquareX);
+    } else {
+     m_chisquareX=100;
+// build road and store    
+    }
+    if(ZhitList.size() >= 3) {
+              linefit(ZhitList,2,&m_aZ,&m_bZ,&m_aZErr,&m_bZErr,&m_chisquareZ);
+    } else {
+// build road 
+      m_chisquareZ=100;   
+    }
+    XhitList.clear();
+    ZhitList.clear();
+     
+}
+
+// fit track in projection dir
+void  RPCTrack::fitTrack(int dir){
+
+// Store hit list and make iterator
+    std::vector<RPCCluster *>::iterator ih; 
+    std::vector<RPCCluster *> hitList=m_hitList;
+//    std::cout << "RPCTrack::fitTrack:  sto fittando" << std::endl;
+
+    double a,b;
+     a=0;
+     b=0;
+
+// select the hit list in the right projection
+    std::vector<RPCCluster *>::iterator ix; 
+    std::vector<RPCCluster *> XhitList;   
+    
+    for( ih=m_hitList.begin(); ih!=m_hitList.end(); ++ih) {
+      if( (*ih)->stripDir() == dir){
+         XhitList.push_back(*ih);
+      } 
+    }
+//    std::cout << " XList :" << XhitList.size() << " ZList : " << ZhitList.size() << std::endl;
+    if(XhitList.size() >= 3){ 
+      linefit(XhitList,dir,&m_aX,&m_bX,&m_aXErr,&m_bXErr,&m_chisquareX);
+    } else {
+// build road      
+    }
+    XhitList.clear();
+}
+
+
+
+/*****************************************************************************
+ *
+ *****************************************************************************/
+void RPCTrack::linefit(std::vector<RPCCluster *> hList, int flag, double *bb, double *aa,
+                                 double *sigbb, double *sigaa, double *chi2){
+
+    std::vector<RPCCluster *>::iterator ih;
+    double ss = 0.0, sx  = 0.0, sy  = 0.0, wt = 0.0;
+    double yy = 0.0, xx  = 0.0, syy = 0.0, sxy = 0.0;
+
+
+    for( ih=hList.begin(); ih!=hList.end(); ++ih) {
+        wt = 1.0/(*ih)->Err();
+	wt = wt*wt;
+	ss += wt;
+	
+	if(flag == 0)
+	  xx = (*ih)->X();
+        else if(flag == 2) xx = (*ih)->Z();
+	
+	sx += xx*wt;
+	yy = (*ih)->Y();
+	sy += yy*wt;
+	syy+= yy*yy*wt;
+	sxy+= yy*xx*wt;  
+    }
+    
+/*    Compute coefficients of the eq. x = by + a and fit chi2
+
+*/
+    double delta = ss*syy - (sy*sy);
+     *aa = (syy*sx - sy*sxy)/delta;
+     *bb = (ss*sxy - sy*sx)/delta;
+     *sigaa = sqrt(syy/delta);
+     *sigbb = sqrt(ss/delta);
+//    std::cout << "a +- siga " << (*aa) << " +- " << (*sigaa) <<std::endl;
+//    std::cout << "b +- sigb " << (*bb) << " +- " << (*sigbb) <<std::endl; 
+    
+    double chi = 0.0;
+    *chi2 = 0.0;
+    int ntot_hits = 0;
+    for( ih=hList.begin(); ih!=hList.end(); ++ih) {
+      wt = 1.0/(*ih)->Err();
+      
+      if(flag == 0)
+	  xx = (*ih)->X();
+      else if(flag == 2) xx = (*ih)->Z();
+      
+      yy = (*ih)->Y();
+      chi = ( xx - (*aa) - (*bb)*yy)*wt;
+      (*chi2) += chi*chi;
+      ntot_hits++;  
+    }
+      (*chi2) = (*chi2)/(ntot_hits - 2) ;
+//    std::cout << " fit normalized chi2 " << (*chi2) << " " << ntot_hits << std::endl;
+
+}
+/*********************************************************************
+ *
+ * Fill Histograms for tracks
+ * Date: 5/4/2001
+ *
+ *********************************************************************/
+void RPCTrack::fill(int baseid) {
+/*    HisFile* hf = HisFile::getHisFile();
+    Histo * histo, *histo1,*histo2; 
+    Histo *htimetracke,*htimetrackp;
+    htimetracke=hf->his(baseid+1110);
+    htimetrackp=hf->his(baseid+1112);
+    
+    double residual;
+    std::vector<RPCCluster *>::iterator ih; 
+    
+    histo1=hf->his(baseid);
+    
+        for (int j=1;j!=13;j++)if(isPresent(j))hf->his(baseid+500)->fill(j,0.0,1.0);
+
+// loop on hits, compute residuals and fill histogram //
+                int maxtimep=-999999,mintimep=999999;
+                int maxtimee=-999999,mintimee=999999;
+                float maxposp=-999999,minposp=999999;
+                float maxpose=-999999,minpose=999999;                
+    for( ih=m_hitList.begin(); ih!=m_hitList.end(); ++ih) {
+       if( (*ih)->stripDir() == 0){
+         residual = 
+          ((float)computeResidual((*ih)->X(),(*ih)->Y(),m_aX,m_bX));
+       }	  
+       if( (*ih)->stripDir() == 2){
+         residual = 
+          ((float)computeResidual((*ih)->Z(),(*ih)->Y(),m_aZ,m_bZ));  
+       }
+//       std::cout << "residuo " << residual << " " << (*ih)->plane() << std::endl;
+       histo=hf->his(baseid+(*ih)->chamber()*10+(*ih)->plane());
+       histo->fill(residual,0.,1.);
+       histo2=hf->his(baseid+2000+(*ih)->chamber()*10+(*ih)->plane());
+       histo2->fill(residual/(*ih)->Err(),0.,1.);     
+         
+       histo1->fill(residual/(*ih)->Err(),0.,1.);
+ 
+ 
+// make some histos for timing
+// gedt list of strip in this cluster 
+                   std::vector<RPCStrip *> striplist=(*ih)->stripPtr();
+// sort strips decreasing with time 
+                   TimeSort ts;
+                   sort(striplist.begin(),striplist.end(),ts);   
+// take the late time
+                   int ctime=striplist[0]->time();  
+                   float cpos=striplist[0]->Y();  
+                   histo=hf->his(baseid+10000+(*ih)->chamber()*10+(*ih)->plane());                  
+                   histo->fill((float)ctime,0.0,1.0); 
+                   
+                   if(striplist[0]->stripDir()==0){
+                     if(cpos <=minpose)mintimee=ctime;
+                     if(cpos >=maxpose)maxtimee=ctime;
+                   } else if(striplist[0]->stripDir()==2){
+                     if(cpos <=minposp)mintimep=ctime;
+                     if(cpos >=maxposp)maxtimep=ctime; 
+                   }                     
+        
+                float diffe=(float)(maxtimee-mintimee);
+                float diffp=(float)(maxtimep-mintimep);     
+                htimetracke->fill(diffe,0.0,1.0);
+                htimetrackp->fill(diffp,0.0,1.0);
+       
+       
+       
+    }
+// fill number of hits per track
+    histo=hf->his(baseid+999);
+    histo->fill(m_hitList.size(),0.0,1.0);
+// fill number of hits per track in x direction    
+    histo=hf->his(baseid+1000);
+    histo->fill(nHits(0),0.0,1.0);
+// fill number of hits per track in z direction   
+    histo=hf->his(baseid+1002);    
+    histo->fill(nHits(2),0.0,1.0);
+// fill chisquare in phi and eta   
+    histo=hf->his(baseid+1005);    
+    histo->fill(m_chisquareZ,0.0,1.0);  
+    histo=hf->his(baseid+1006);    
+    histo->fill(m_chisquareX,0.0,1.0);   
+// fill track slope in phi and eta   
+    histo=hf->his(baseid+1007);    
+    histo->fill(m_aZ,0.0,1.0);  
+    histo=hf->his(baseid+1008);    
+    histo->fill(m_aX,0.0,1.0); 
+    // fill track impact in phi and eta   
+    histo=hf->his(baseid+1017);    
+    histo->fill(m_bZ,0.0,1.0);  
+    histo=hf->his(baseid+1018);    
+    histo->fill(m_bX,0.0,1.0);  
+    
+// chi2 vs track impact
+    histo=hf->his(baseid+1006+100000);
+    histo->fill(m_bX,m_chisquareX,1.0);   
+    */
+}
+
+/*********************************************************************
+ *
+ * Fill Histograms for tracks
+ * Date: 5/4/2001
+ *
+ *********************************************************************/
+void RPCTrack::fill(int baseid, int idsp) {
+/*    HisFile* hf = HisFile::getHisFile();
+    Histo * histo, *histo1,*histo2; 
+    double residual;
+    std::vector<RPCCluster *>::iterator ih; 
+    
+    histo1=hf->his(baseid);
+ 
+       
+       
+    for (int j=1;j!=13;j++)if(isPresent(j))hf->his(baseid+500)->fill(j,0.0,1.0);
+    
+// loop on hits, compute residuals and fill histogram //
+    for( ih=m_hitList.begin(); ih!=m_hitList.end(); ++ih) {
+      if((*ih)->chamber()*10+(*ih)->plane()==idsp){
+       if( (*ih)->stripDir() == 0){
+         residual = 
+          ((float)computeResidual((*ih)->X(),(*ih)->Y(),m_aX,m_bX));
+       }	  
+       if( (*ih)->stripDir() == 2){
+         residual = 
+          ((float)computeResidual((*ih)->Z(),(*ih)->Y(),m_aZ,m_bZ));  
+       }
+//       std::cout << "residuo " << residual << " " << (*ih)->plane() << std::endl;
+       histo=hf->his(baseid+idsp);
+       histo->fill(residual,0.,1.);
+       
+       histo2=hf->his(baseid+2000+idsp);
+       histo2->fill(residual/(*ih)->Err(),0.,1.);     
+         
+       histo1->fill(residual/(*ih)->Err(),0.,1.);
+     }
+    }
+// fill number of hits per track
+    histo=hf->his(baseid+999);
+    histo->fill(m_hitList.size(),0.0,1.0);
+// fill number of hits per track in x direction    
+    histo=hf->his(baseid+1000);
+    histo->fill(nHits(0),0.0,1.0);
+// fill number of hits per track in z direction   
+    histo=hf->his(baseid+1002);    
+    histo->fill(nHits(2),0.0,1.0);
+// fill chisquare in phi and eta   
+    histo=hf->his(baseid+1005);    
+    histo->fill(m_chisquareZ,0.0,1.0);  
+    histo=hf->his(baseid+1006);    
+    histo->fill(m_chisquareX,0.0,1.0);   
+*/
+}
+
+
+  void RPCTrack::print(){
+    std::cout << std::endl << "==============================================" <<
+         std::endl << "RPCTrack::print" << std::endl;
+    std::cout << m_hitList.size() << " hits used for this track"<<std::endl; 
+    std::cout << " *********** ZY-projection : Y = aZ*Z + bZ "<< std::endl;
+    std::cout << "aZ,bZ=" << m_aZ << " " << m_bZ << std::endl;
+    std::cout << "delta(aZ),delta(bZ)=" 
+         << m_aZErr << " " << m_bZErr << std::endl;
+    std::cout << "chisquared=" << m_chisquareZ << std::endl; 
+    std::cout << std::endl;
+    std::cout << " *********** XY-projection : X = a[1]Y + b[1]"<< std::endl;
+    std::cout << "aX,bX=" << m_aX << " " << m_bX << std::endl; 
+    std::cout << "delta(aX),delta(bX)="  << m_aXErr << " " << m_bXErr << std::endl;
+    std::cout << "chisquared=" << m_chisquareX << std::endl;
+    std::cout << std::endl;
+    std::vector<RPCCluster *>::iterator ih;
+    for( ih=m_hitList.begin(); ih!=m_hitList.end(); ih++)(*ih)->print();
+
+}
+
+double RPCTrack::computeResidual(double x, double y, double a, double b) {
+  // compute distance between line x = a*y + b and point x_0,y_0 
+         double y1 = ((x+y/a) - b)/(a+1./a);
+         double x1 = a*y1 + b;
+	 double resid = sqrt ( (x-x1)*(x-x1) + (y-y1)*(y-y1) );
+	 if(x1 >  x) resid = -resid;
+         return resid;
+}
+
+double RPCTrack::estrapPlane(int dir,double yPlane,double &sigestrap) {
+  // compute track estrapolation to a RPC plane y=yPlane 
+         double estrap = 0;
+	 
+	 if(dir == 0) {
+	    estrap = m_aX*yPlane + m_bX;
+	    sigestrap =  sqrt ( pow(yPlane*m_aXErr,2)+ pow(m_bXErr,2) );    
+	 }    
+	 else if (dir == 2) { 
+	    estrap = m_aZ*yPlane + m_bZ;
+	    sigestrap =  sqrt ( pow(yPlane*m_aZErr,2)+ pow(m_bZErr,2) );  
+	 }    
+         return estrap;
+}
+
+std::vector<RPCCluster *> RPCTrack::hitList() const {return m_hitList;}
+double RPCTrack::aZ() const {return m_aZ;}
+double RPCTrack::aZErr() const {return m_aZErr;}
+double RPCTrack::bZ() const {return m_bZ;}
+double RPCTrack::bZErr() const {return m_bZErr;}
+double RPCTrack::abZCorr() const {return m_abZCorr;}
+double RPCTrack::aX() const {return m_aX;}
+double RPCTrack::aXErr() const {return m_aXErr;}     
+double RPCTrack::bX() const {return m_bX;}  
+double RPCTrack::bXErr() const {return m_bXErr;} 
+double RPCTrack::abXCorr() const {return m_abXCorr;} 
+double RPCTrack::chisquareZ() const {return m_chisquareZ;} 
+double RPCTrack::chisquareX() const {return m_chisquareX;} 
+int RPCTrack::score() const {return m_score;} 
+int RPCTrack::nHits(){return m_hitList.size();}
+
+int RPCTrack::nHits(int dir){
+    int nhits=0;
+    std::vector<RPCCluster *>::iterator ih;
+    for( ih=m_hitList.begin(); ih!=m_hitList.end(); ih++) if( (*ih)->stripDir() == dir)nhits++;
+    return nhits;
+}
+
+//
+// This method remove from the hit List all hits with pull greater than factor
+// and returns the list of removed hits
+//
+std::vector<RPCCluster *> RPCTrack::RemoveWorstHits(float factor){
+	 double  resid,pull,sigestrap,coord;
+     std::vector<RPCCluster *> worstList,newList;	 
+     std::vector<RPCCluster*>::iterator ic; 
+	 
+     for(ic=m_hitList.begin(); ic!=m_hitList.end();ic++) {
+// estrapolate  at cluster and compute residual
+       if((*ic)->stripDir()==2)coord=(*ic)->Z();
+       else coord=(*ic)->X(); 
+       resid=abs(coord-estrapPlane((*ic)->stripDir(), (*ic)->Y(), sigestrap)); 
+       pull = resid/(*ic)->Err();  
+// store in separate lists
+       if(pull >= factor)worstList.push_back((*ic)); 
+       else newList.push_back((*ic));
+	 }
+// reset m_hitList
+     m_hitList=newList;	 
+// if enough hits refit, so track is ready for use
+ 	 if(nHits(0) >=3 && nHits(2) >= 3)  fitTrack();
+	 
+	 return worstList;
+}
+
+//
+// This method remove from the hit List all hits with pull greater than factor
+// and returns the list of removed hits
+//
+bool RPCTrack::RemoveWorstHit(float factor){
+	 double  resid,pull,sigestrap,coord,worst=0;	 
+     std::vector<RPCCluster*>::iterator ic,iworst; 
+	 
+     for(ic=m_hitList.begin(); ic!=m_hitList.end();ic++) {
+// estrapolate  at cluster and compute residual
+       if((*ic)->stripDir()==2)coord=(*ic)->Z();
+       else coord=(*ic)->X(); 
+       resid=abs(coord-estrapPlane((*ic)->stripDir(), (*ic)->Y(), sigestrap)); 
+       pull = resid/(*ic)->Err();  
+// store the worst hit
+       if(pull>=worst){
+	     worst=pull;
+		 iworst=ic;
+	   }
+	 }
+// if worst gt than factor remove and refit
+	 if(worst>factor){
+//	   std::cout << " worst " << worst << std::endl;
+//	   (*iworst)->print();
+	   m_hitList.erase(iworst);
+	   if(nHits(0) >=3 && nHits(2) >= 3)  fitTrack();
+       return true;
+	 }
+	 return false;
+}
+
+
+//
+// This method Checs if Chamber ch is present in the list of hits
+//
+bool RPCTrack::isPresent(int ch){	 
+	 
+     for(std::vector<RPCCluster*>::iterator ic=m_hitList.begin(); ic!=m_hitList.end();ic++) {
+//       std::cout << (*ic)->chamber() << " " << ch << std::endl;
+       if((*ic)->chamber()==ch)return true;
+     }
+     return false;
+}
+

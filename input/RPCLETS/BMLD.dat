@@ -1,0 +1,40 @@
+# RPC Geometry Description File for a generic BMLD Chamber
+# ======================================================
+# 0,0,0 is 
+# x side of panel
+# z side of panel
+# y center of upper layer
+#
+# Notes :
+# x,y,z side of  first panel; dist is strip distance
+#
+# x : along eta strips, index=0
+# z : along phi strips, index=1
+# y : height          , index=2
+#  					
+#     ^  y
+#     |
+#     |
+#     |---------> x
+#    /
+#   /
+#  / z
+#
+#
+# "rpc"  nGaps 
+# "gap" GapName GapNumber nStripPlanes
+# "stripplane" PlaneName PlaneNumber nStrips StripLenght StripWidth Direction x,y,z Pitch
+rpc  4 
+gap  L1-L 1  2   
+stripplane PHI 1 64  807.000 26.6  2  36.0  -24.0     8.8  26.6
+stripplane ETA 2 32 1663.000 26.5  0   8.0  -24.0    36.0  26.5     
+gap  L2-L 2  2 
+stripplane ETA 1 32 1663.000 26.5  0   8.0    0.0    36.0  26.5 
+stripplane PHI 2 64  807.000 26.6  2  36.0    0.0     8.8  26.6 
+gap  L1-R 3  2 
+stripplane PHI 1 64  807.000 26.6  2  36.0  -24.0  1728.0  26.6 
+stripplane ETA 2 32 1663.000 26.5  0   8.0  -24.0  1741.0  26.5 
+gap  L2-R 4  2 
+stripplane ETA 1 32 1663.000 26.5  0   8.0    0.0  1741.0  26.5   
+stripplane PHI 2 64  807.000 26.6  2  36.0    0.0  1728.0  26.6
+# end

@@ -1,0 +1,22 @@
+# this file contains the mapping latch, channel -> strip for the 
+# specified run range
+isValid 552 817
+#
+latch  800001  3201
+latch  800002  3101
+latch  800003  3133
+latch  800201 -3301
+latch  800202 -3401
+latch  800203 -3433	
+latch  800401  4201
+latch  800402  4101
+latch  800403  4133
+latch  800601 -4301
+latch  800602 -4401
+latch  800603 -4433	
+latch  800801  5201
+latch  800802  5101
+latch  800803  5133
+latch  800A01 -5301
+latch  800A02 -5401
+latch  800A03 -5433	

@@ -1,0 +1,18 @@
+
+# RPCAnalysis task configuration default values:
+ndebug 0
+recodump 0
+# require at least 4 hits per each view for making tracks
+minhits 3
+minradhits 3
+# use all chambers for tracking for all runs, not only for radiography 
+# runs (default)
+# allchambers
+# require at least 8 hits per each wiew for computing efficiencies
+# when running radiography scans
+# hitsforeffi 12 
+hitsforeffi 3
+maxhits 100
+# window in strips for efficiency computation
+stripwindow 1
+End

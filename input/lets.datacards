@@ -1,0 +1,10 @@
+nev 1000000
+nsk 0
+TimeWindow 0 465
+Debug 0
+DataFormat 7
+#RPCSlowMonitor 0       # RPC Slow Control Monitor
+RPCMonitor     1       # RPC Monitor
+RPCTBAnalize   2       # RPC Test Station task
+#RPCDisplay     3
+End

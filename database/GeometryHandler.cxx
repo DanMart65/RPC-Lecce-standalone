@@ -1,0 +1,960 @@
+/* ****************************************************************
+ * mods: changed length of array fileName to 255. S.Z. 1/3/02
+ *
+ * **************************************************************** */
+
+
+#include <fstream> 
+#include <iostream>
+#include "TVector3.h"
+#include <math.h>   
+#include "control/CalibrationManager.h"
+#include "database/GeometryHandler.h"
+//#include "database/GeoMDTMultiLayer.h"
+//#include "database/GeoMDTTube.h"
+#include "database/GeoRPCChamber.h"
+#include "database/GeoRPCGap.h"
+#include "database/GeoRPCStripPlane.h"
+#include "database/GeoRPCStrip.h"
+#include "event/RPCLETSHeader.h"
+#include "event/Handler.h"
+#include <TSQLResult.h>
+#include <TSQLRow.h>
+
+template<class RPCLETSHeader>  
+Handler<RPCLETSHeader> Handler<RPCLETSHeader>::Singleton;
+
+GeometryHandler* GeometryHandler::m_GeometryHandler = 0;
+
+GeometryHandler* GeometryHandler::getGeometryHandler() 
+{  
+  if(!m_GeometryHandler) {
+    m_GeometryHandler = new GeometryHandler;
+  }
+  return m_GeometryHandler; 
+} 
+
+GeometryHandler::~GeometryHandler()
+{
+  MemoryChecker* Memory = MemoryChecker::getMemoryChecker();
+  Memory->decrease();
+ /* if(!m_multiPtr.empty()) {
+    std::vector<GeoMDTMultiLayer *>::iterator  it;
+    for( it=m_multiPtr.begin(); it!=m_multiPtr.end(); ++it) {
+      delete *it;
+    }
+  }
+  while(!m_multiPtr.empty()){
+    m_multiPtr.pop_back();
+  }
+  */
+// this should delete also gaps, stripplanes and strips...
+  if(!m_rpcchamberPtr.empty()) {
+    std::vector<GeoRPCChamber *>::iterator  it;
+    for( it=m_rpcchamberPtr.begin(); it!=m_rpcchamberPtr.end(); ++it) {
+      delete *it;
+    }
+  }
+  
+  
+  while(!m_rpcchamberPtr.empty()){
+    m_rpcchamberPtr.pop_back();
+  } 
+  while(!m_planePtr.empty()){
+    m_planePtr.pop_back();
+  }                                                                               
+  while(!m_gapPtr.empty()){
+    m_gapPtr.pop_back();
+  } 
+}
+
+int   GeometryHandler::nMultiLayer()
+{
+  //return m_multiPtr.size();
+}
+
+int   GeometryHandler::nStripPlane()
+{
+  return m_planePtr.size();
+}
+
+int   GeometryHandler::nRPCChamber()
+{
+  return m_rpcchamberPtr.size();
+}
+
+int   GeometryHandler::nGap()
+{
+  return m_gapPtr.size();
+}
+
+/*GeoMDTMultiLayer * GeometryHandler::multiLayerPtr(int jlayer) 
+{
+  return m_multiPtr[jlayer];
+}*/
+
+GeoRPCStripPlane * GeometryHandler::stripPlanePtr(int jplane) 
+{
+  return m_planePtr[jplane];
+}
+
+GeoRPCChamber * GeometryHandler::RPCChamberPtr(int jchamb) 
+{
+  return m_rpcchamberPtr[jchamb];
+}
+
+GeoRPCGap * GeometryHandler::gapPtr(int jgap) 
+{
+  return m_gapPtr[jgap];
+}
+
+
+/*void GeometryHandler::set(GeoMDTMultiLayer * ml) 
+{
+//  m_multiPtr.push_back(ml);
+}*/
+
+void GeometryHandler::set(GeoRPCStripPlane * ml) 
+{
+  m_planePtr.push_back(ml);
+}
+
+void GeometryHandler::set(GeoRPCChamber * ml) 
+{
+  m_rpcchamberPtr.push_back(ml);
+}
+
+void GeometryHandler::set(GeoRPCGap * ml) 
+{
+  m_gapPtr.push_back(ml);
+}
+
+void  GeometryHandler::updateLinks(int run) {
+/*  for(int j=0; j<nMultiLayer() ; j++) {
+    GeoMDTMultiLayer * gmultiPtr = multiLayerPtr(j);
+    gmultiPtr->updateLinks(run);
+  }
+  */
+}
+
+/*GeoMDTMultiLayer * GeometryHandler::findMultiLayer(int multiLayerId) 
+{
+ 
+  if(!m_multiPtr.empty()) {
+    std::vector<GeoMDTMultiLayer*>::iterator  is;
+    for (is=m_multiPtr.begin(); is!=m_multiPtr.end(); ++is) {
+      if((*is)->idMultiLayer() == multiLayerId) return (*is); 
+    }
+  }
+  return 0;
+  
+}*/
+
+/*
+GeoMDTTube * GeometryHandler::findTube(int tubeId) 
+{
+  
+  int MultiLayerId = (int) tubeId/1000 ;
+  GeoMDTMultiLayer * geoMultiLayer = findMultiLayer(MultiLayerId);
+  if(geoMultiLayer!=0) return geoMultiLayer->findTube(tubeId);
+  return 0;
+
+}*/
+
+GeoRPCStripPlane * GeometryHandler::findStripPlane(int StripPlaneId) 
+{
+  if(!m_planePtr.empty()) {
+    std::vector<GeoRPCStripPlane*>::iterator  is;
+    for (is=m_planePtr.begin(); is!=m_planePtr.end(); ++is) {
+      if((*is)->idStripPlane() == StripPlaneId) return (*is); 
+    }
+  }
+  return 0;
+}
+
+GeoRPCChamber * GeometryHandler::findRPCChamber(int ChamberId) 
+{
+  if(!m_rpcchamberPtr.empty()) {
+    std::vector<GeoRPCChamber*>::iterator  is;
+    for (is=m_rpcchamberPtr.begin(); is!=m_rpcchamberPtr.end(); ++is) {
+      if((*is)->Chamber() == ChamberId) return (*is); 
+    }
+  }
+  return 0;
+}
+
+GeoRPCGap * GeometryHandler::findGap(int GapId) 
+{
+  if(!m_gapPtr.empty()) {
+    std::vector<GeoRPCGap*>::iterator  is;
+    for (is=m_gapPtr.begin(); is!=m_gapPtr.end(); ++is) {
+      if((*is)->Gap() == GapId) return (*is); 
+    }
+  }
+  return 0;
+}
+
+void GeometryHandler::print() {
+/*  for(int j=0; j<nMultiLayer() ; j++) {
+    GeoMDTMultiLayer * gmultiPtr = multiLayerPtr(j);
+    int id    = gmultiPtr->idMultiLayer();
+    std::cout << "disp  --> multi " << j+1 << " id : " << id << std::endl;
+    gmultiPtr->printOut();
+    int ntubes = gmultiPtr->nTubes();
+    for(int i=0; i<ntubes; i++) {
+      std::cout << "disp  -->" << std::setw(3) << i+1 << " ";
+      GeoMDTTube * gtubePtr = gmultiPtr->tubePtr(i);
+      gtubePtr->printOut();
+      if (i%8==1) {checkMDT(i,gtubePtr);}
+    }
+  }*/
+  for(int j=0; j<nStripPlane() ; j++) {
+    GeoRPCStripPlane * gplanePtr = stripPlanePtr(j);
+    int id    = gplanePtr->idStripPlane();
+    std::cout << "disp  --> plane " << j+1 << " id : " << id << std::endl;
+    gplanePtr->printOut();
+    int n = gplanePtr->Nstrips();
+    for(int i=0; i<n; i++) {
+      std::cout << "disp  -->" << std::setw(3) << i+1 << " ";
+      GeoRPCStrip * gstripPtr = gplanePtr->stripPtr(i);
+      gstripPtr->printOut();
+      if (i%8==3) {checkRPC(i,gstripPtr);}
+    }
+  }  
+  
+}
+
+/*bool GeometryHandler::checkMDT (int jtube, GeoMDTTube * gtubePtr){
+  HepPoint3D  mypoint (0.,0.,-7.5);
+  HepVector3D mydir   (0.,-21.,0.);
+  //
+  if(m_debugLevel>1){ 
+  std::cout << "check -->" << std::setw(3) << jtube << " ";
+  gtubePtr->printOut();
+  }
+  //
+  double dd = gtubePtr->distAlongWire(mypoint);
+  double dr = gtubePtr->driftDistance(mypoint);
+  HepPoint3D vv = gtubePtr->nearestPoint(mypoint,mydir);
+  if(m_debugLevel>1){
+  std::cout << "check --> dist : " << dd;
+  std::cout << " drift : " << dr;
+  std::cout << " vv : " << vv.x() << " " << vv.y() << " " << vv.z() << " ";
+  std::cout << std::endl;
+  }
+  return true;
+  
+
+}                               */                                                
+
+
+bool GeometryHandler::checkRPC (int jstrip, GeoRPCStrip * gstripPtr){
+  TVector3  mypoint (0.,0.,-7.5);
+  TVector3 mydir   (0.,-21.,0.);
+  //
+  std::cout << "check -->" << std::setw(3) << jstrip << " ";
+  gstripPtr->printOut();
+  //
+  return true;
+} 
+
+GeometryHandler::GeometryHandler(){
+  if(m_GeometryHandler) abort();
+  MemoryChecker* Memory = MemoryChecker::getMemoryChecker();
+  Memory->increase();
+  m_GeometryHandler = this; 
+
+  CalibrationManager * manager=CalibrationManager::getCalibrationManager();    
+  int geometry_type = manager->geometryFormat();
+  if(geometry_type!=0) {std::cout << "GeometryHandler:: geometry flag not valid, abort" << std::endl; abort();}
+  m_debugLevel= manager->Debug();
+// checks here if a run header has been stored, and get it
+  Handler<RPCLETSHeader>  &hdh = Handler<RPCLETSHeader>::getHandle();
+  if(hdh.size()==0){
+    std::cout << "GeometryHandler::GeometryHandler: Run Header not yet loaded, abort()" << std::endl; 
+	abort();
+  }
+// otherwise load the pointer  
+  RPCLETSHeader * h=(RPCLETSHeader *)hdh[hdh.size()-1];
+// 
+// open Database, and set pointer 
+//
+ // ================================================= DA REINSERIRE CON NUOVO SERVER  db = TSQLServer::Connect("mysql://sqlserver/atlas","daqatlas", "rpcl3cc3");  
+//  
+// loop on mounted RPC and load geometry for this chamber  
+//
+  std::cout << "GeometryHandler::GeometryHandler: Start loading geometry for run" << 
+  h->runNumber() << std::endl; 
+  for (int jd=0; jd!=h->NumRPCmount(); jd++)DBloadRPCChamber(h->PosRPCmount(jd+1),h->NameRPCmount(jd+1),h->TestGroup());
+  std::cout << "GeometryHandler::GeometryHandler: geometry loaded ..\n" << std::endl;
+}
+
+void GeometryHandler::load() {
+  char * fileList = "input/geofiles";
+  char chComm[]   = "#";
+  char   fileName[255], geoNam[3];
+  std::ifstream input(fileList);
+  
+  if(!input) {
+    std::cout << "GeometryHandler::load could not open in file" << std::endl;
+    std::cout << "              file not found " << fileList << std::endl;
+    abort();
+  } 
+
+  int nFiles=0;
+////// CHECK funzionamento.
+//  while (input.scan("%s",&fileName[0])) {
+  while (  (input >> fileName) ) {
+    if  (strncmp(fileName,chComm,1)==0) continue;
+    std::ifstream fGeo(fileName);
+    if (!fGeo) {
+      std::cout << "GeometryHandler::Geometry file " << fileName << " not found." << std::endl;
+      abort();
+      }
+    nFiles++;
+    std::cout << "GeometryHandler::load Geometry file " << nFiles << " : " << fileName;
+    fGeo >> geoNam ;
+    while (strncmp(geoNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>geoNam ;}
+    std::cout << ", type : " << geoNam << std::endl;
+    if (strncmp(geoNam,"mdt",3)==0 || strncmp(geoNam,"trk",3)==0 ) {
+      loadMultiLayer(fileName);}
+    else if (strncmp(geoNam,"tra",3)==0) {loadTransform(fileName);}
+    else if (strncmp(geoNam,"mod",3)==0) {loadMods(fileName);}
+    else if (strncmp(geoNam,"rpc",3)==0) {loadRPCChamber(fileName);}
+    else {std::cout << "Unknown Geometry file type: >" << geoNam << "<" << std::endl; abort();}
+  }
+}
+
+void GeometryHandler::loadMultiLayer(char fileName[255]){
+/*  char   geoNam[3], dateNam[10], timeNam[5], mulNam[5];
+  int    idChamb,idMulti,nLayer,idLayer,nTubes,runSta,runEnd;
+  double xyz[3],dxyz[3],xyztube[3],tubeLen,wireRad,tubeInn,tubeOut;
+  std::vector<GeoMDTTube *> gtubelist;
+  char chComm[]   = "#";
+  std::ifstream fGeo(fileName);
+  //
+  fGeo >> geoNam ;
+  while (strncmp(geoNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>geoNam ;}  
+  fGeo >> idChamb>>idMulti>>nLayer>>runSta>>runEnd>>dateNam>>timeNam;
+  fGeo.ignore(500,'\n');
+  // std::cout << "data : " << geoNam << " " << idChamb << " " << idMulti << " ";
+  // std::cout << nLayer << " " << runSta << " " << runEnd << " " << dateNam ;
+  // std::cout << " " << timeNam << std::endl;
+  int nTubesMulti = 0;
+  for (int jLayer=0; jLayer<nLayer; jLayer++) {
+    fGeo >> mulNam;
+    while (strncmp(mulNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>mulNam ;}
+    fGeo >> idLayer >> nTubes >> tubeLen >> wireRad >> tubeInn >> tubeOut;
+    fGeo >> xyz[0] >> xyz[1] >> xyz[2] >> dxyz[0] >> dxyz[1] >> dxyz[2];
+    fGeo.ignore(500,'\n');
+    nTubesMulti += nTubes;
+    for (int jTube=0; jTube<nTubes; jTube++) { 
+      for (int j=0; j<3; j++) {xyztube[j] = xyz[j] + jTube * dxyz[j];}
+      int idFull = 1 + jTube + 100*idLayer + 1000*idMulti + 10000*idChamb;
+      gtubelist.push_back(new GeoMDTTube(idFull,xyztube,tubeLen,wireRad,
+					 tubeInn,tubeOut));
+    }
+  }
+  set(new GeoMDTMultiLayer(idMulti,idChamb,nTubesMulti,nLayer,
+                           gtubelist,tubeLen,
+			   wireRad,tubeInn,tubeOut));
+  gtubelist.clear();
+  if(m_debugLevel>1){
+    print();}*/
+}
+/*  
+void GeometryHandler::loadStripPlane(char fileName[255]){
+  char   geoNam[3], dateNam[10], timeNam[5], mulNam[5];
+  int    idChamb,idGap,idPlane,nStripPlane,nStrip,runSta,runEnd,stripDir;
+  std::string PlaneName;
+  double xyzstrip[3],xyz[3],dist,stripLen,stripWidth;
+  std::vector<GeoRPCStrip *> gstriplist;
+  std::vector<GeoRPCStripPlane *> gplanes;
+  
+  char chComm[]   = "#";
+  std::ifstream fGeo(fileName);
+  //
+  fGeo >> geoNam ;
+  while (strncmp(geoNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>geoNam ;}  
+  fGeo >> idChamb>>idGap>>nStripPlane>>runSta>>runEnd>>dateNam>>timeNam;
+  fGeo.ignore(500,'\n');
+  
+  for (int jPlane=0; jPlane<nStripPlane; jPlane++) {
+    fGeo >> mulNam;
+    while (strncmp(mulNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>mulNam ;}
+    fGeo >> PlaneName >> idPlane >> nStrip >> stripLen >> stripWidth >> stripDir;
+    fGeo >> xyz[0] >> xyz[1] >> xyz[2] >> dist;
+    
+    
+    fGeo.ignore(500,'\n');
+    for (int jstrip=0; jstrip<nStrip; jstrip++) { 
+      for(int j=0; j<3; j++) {
+         if(j==stripDir) { 
+           xyzstrip[j]=xyz[j] + (jstrip+0.5)*dist;
+         } else if(j != 1) {
+           // valid only for planes orthogonal to y axis
+           xyzstrip[j]=xyz[j] + stripLen*0.5 ;
+         } else if(j==1) {
+           xyzstrip[j]=xyz[j];
+         }
+      }
+      int idFull = 1 + jstrip + 100*idPlane + 1000*idChamb;
+      
+       gstriplist.push_back(new GeoRPCStrip(idFull,xyzstrip,stripLen,stripWidth,
+					 stripDir));
+    }
+      
+      
+    GeoRPCStripPlane * rpcsp = new GeoRPCStripPlane(idPlane,idChamb,nStrip,gstriplist,stripLen,
+			  stripWidth,stripDir,PlaneName);
+
+    set(rpcsp);
+    gstriplist.clear();
+    gplanes.push_back(rpcsp);
+    
+  }
+// create new RPC Chamber geometry  
+  GeoRPCChamber * gch=new GeoRPCChamber(gplanes,idChamb);
+  if(m_debugLevel>0)gch->printOut();
+// add to list
+  set(gch);
+  
+  gplanes.clear();    
+  gstriplist.clear();
+}
+*/
+void GeometryHandler::DBloadRPCChamber(int idChamb,std::string ChamberName, int TestGroup){
+
+// first get alignment data for this chamber from DB
+  std::vector<float> genoff=XYZOffset(ChamberName,TestGroup);
+  std::vector<float> planeoff=PlaneOffset(ChamberName,TestGroup);	
+  int NumPlanes=8; // fare metodo che legge questo...
+// 
+      
+// now open file with read the Generic Geometry
+  std::string ChamberType="input/RPCLETS/"+ChamberName.substr(0,4);
+// patch for Chambers with 5 characters CHECK
+  if(ChamberName.substr(4,1)!="0" && ChamberName.substr(4,1)!="1"){
+    ChamberType+=ChamberName.substr(4,1);
+  }  
+  ChamberType+=".dat";
+  std::ifstream fGeo(ChamberType.c_str());
+  if (!fGeo) {
+    std::cout << "GeometryHandler::Geometry file " << ChamberType << " not found." << std::endl;
+    abort();
+  }
+  std::cout << "GeometryHandler::load Geometry file: " << ChamberType  
+  << " for Chamber: " << ChamberName << " at position: " << idChamb << std::endl;
+
+// read info on Chamber
+  char   geoNam[3], mulNam[11],dateNam[10], timeNam[5];
+  int    nGap,idGap,nStripPlane,idPlane,nStrip,runSta,runEnd,stripDir;
+  std::string GapName,PlaneName;  
+  double xyzstrip[3],xyz[3],dist,stripLen,stripWidth;
+  std::vector<GeoRPCStrip *> gstriplist;
+  std::vector<GeoRPCStripPlane *> gplanes;
+  std::vector<GeoRPCGap *> ggap;
+  char chComm[]   = "#";
+  
+  fGeo >> geoNam ; 
+  while (strncmp(geoNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>geoNam ;}  
+  fGeo >>nGap;
+// loop on Gaps
+  for (int jGap=0; jGap<nGap; jGap++) {
+// read info on gap
+    fGeo >> geoNam;
+    while (strncmp(geoNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>geoNam ;}   
+    fGeo >> GapName >> idGap>>nStripPlane;
+    fGeo.ignore(500,'\n');
+// loop on StripPlanes  
+    for (int jPlane=0; jPlane<nStripPlane; jPlane++) {
+      fGeo >> mulNam;
+      while (strncmp(mulNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>mulNam ;}
+//      if (strncmp(geoNam,"stripplane",10)==0){
+//        std::cout << "expected strippplane, not found exit" << std::endl; 
+//        abort();
+//      }
+      fGeo >> PlaneName >> idPlane >> nStrip >> stripLen >> stripWidth >> stripDir;
+      fGeo >> xyz[0] >> xyz[1] >> xyz[2] >> dist;
+      fGeo.ignore(500,'\n');
+      
+      
+      //if(idChamb==1 && idGap==2 && idPlane==1)nStrip=64;
+      
+      
+//      std::cout << xyz[0] << " " << xyz[1] << " " << xyz[2] << std::endl;
+
+// PlaneId is convoluted with gapId !!
+      int PlaneId = (idGap-1)*nStripPlane+idPlane;
+	  double poffx=0.0,poffz=0.0;
+	  if(PlaneId==1 || PlaneId==4 || PlaneId ==5 || PlaneId==8)poffz=genoff[2]+planeoff[PlaneId-1];
+	  if(PlaneId==2 || PlaneId==3 || PlaneId ==6 || PlaneId==7)poffx=genoff[0]+planeoff[PlaneId-1];
+// correct for Offsets, valido se piani dato in ordine, correggere......
+      xyz[0]+=poffx;
+      xyz[1]+=genoff[1];
+      xyz[2]+=poffz; 
+//      std::cout << xyz[0] << " " << xyz[1] << " " << xyz[2] << std::endl;
+
+// now create the strips    
+//      std::cout << "Chamber2: " << idChamb << " " << PlaneId << "\n";
+      for (int jstrip=0; jstrip<nStrip; jstrip++) { 
+        for(int j=0; j<3; j++) {
+          if(j==stripDir) { 
+            xyzstrip[j]=xyz[j] + (jstrip+0.5)*dist;
+          } else if(j != 1) {
+            // valid only for planes orthogonal to y axis
+            xyzstrip[j]=xyz[j] + stripLen*0.5 ;
+          } else if(j==1) {
+            xyzstrip[j]=xyz[j];
+          }
+        }
+        // set idStrip (use PlaneId)
+        int idFull = 1 + jstrip + 100*PlaneId + 1000*idChamb; 
+//          std::cout << "Chamber3: " << idChamb << " " << jstrip << "\n";
+     
+        gstriplist.push_back(new GeoRPCStrip(idFull,xyzstrip,stripLen,stripWidth,
+					 stripDir));
+      }
+// now create the StripPlane , adding the created strips 
+
+      GeoRPCStripPlane * rpcsp = new GeoRPCStripPlane(PlaneId,idChamb,nStrip,gstriplist,stripLen,
+			  stripWidth,stripDir,ChamberName+"-"+GapName+"-"+PlaneName);
+// add the StripPlane to the Geometry List
+      set(rpcsp);
+      gstriplist.clear();
+      gplanes.push_back(rpcsp);
+    } // end loop on planes 
+// now create the gap, adding the created stripplanes
+    GeoRPCGap * gga=new GeoRPCGap(gplanes,idGap,ChamberName+"-"+GapName);
+    set(gga);
+    gplanes.clear();
+    ggap.push_back(gga);
+  } // end loop on gaps
+
+// finally create new RPC Chamber geometry  
+
+  GeoRPCChamber * gch=new GeoRPCChamber(ggap,idChamb,ChamberName);
+// add to list
+  set(gch);  
+  ggap.clear();    
+// print out if debug
+  if(m_debugLevel>0)gch->printOut();
+}
+
+
+void GeometryHandler::loadRPCChamber(char fileName[255]){
+  char   geoNam[3], dateNam[10], timeNam[5], mulNam[11];
+  int    idChamb,idGap,idPlane,nGap,nStripPlane,nStrip,runSta,runEnd,stripDir,NumPlanes;
+  std::string PlaneName,ChamberName,GapName,ChamberType;
+  ChamberName="XXXXXXXX";
+  float ChYoff;
+  
+  double xyzstrip[3],xyz[3],dist,stripLen,stripWidth;
+
+  std::vector<GeoRPCStrip *> gstriplist;
+  std::vector<GeoRPCStripPlane *> gplanes;
+  std::vector<GeoRPCGap *> ggap;
+    
+  char chComm[]   = "#";
+  
+  std::ifstream fOff(fileName);
+
+// read info on Chamber
+  fOff >> geoNam ; // rpc
+  while (strncmp(geoNam,chComm,1)==0) {fOff.ignore(500,'\n');fOff>>geoNam ;}  
+  fOff >> ChamberType >> idChamb >> ChYoff>>NumPlanes; 
+//  if(m_debugLevel>0)
+//     std::cout << idChamb << " " << ChYoff << " " << NumPlanes << std::endl;    
+
+  
+  double PlaneNum[NumPlanes],xoff[NumPlanes],zoff[NumPlanes];
+
+  for (int i=0;i!=NumPlanes;i++){ 
+    fOff >> geoNam;
+    while (strncmp(geoNam,chComm,1)==0) {fOff.ignore(500,'\n');fOff>>geoNam ;}
+    fOff >> PlaneNum[i] >> xoff[i] >> zoff[i];
+    if(m_debugLevel>0)
+         std::cout << geoNam << " " << PlaneNum[i] << " " << xoff[i] << " " << zoff[i] << std::endl;
+  }
+  fOff.close();
+// now read the Generic Geometry
+  ChamberType="input/RPCLETS/"+ChamberType+".dat";
+  std::ifstream fGeo(ChamberType.c_str());
+  if (!fGeo) {
+    std::cout << "GeometryHandler::Geometry file " << fileName << " not found." << std::endl;
+    abort();
+  }
+  std::cout << "GeometryHandler::load Geometry file: " << ChamberType  << std::endl;
+
+// read info on Chamber
+  fGeo >> geoNam ; 
+  while (strncmp(geoNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>geoNam ;}  
+  fGeo >>nGap;
+// loop on Gaps
+  for (int jGap=0; jGap<nGap; jGap++) {
+// read info on gap
+    fGeo >> geoNam;
+    while (strncmp(geoNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>geoNam ;}   
+    fGeo >> GapName >> idGap>>nStripPlane;
+    fGeo.ignore(500,'\n');
+// loop on StripPlanes  
+    for (int jPlane=0; jPlane<nStripPlane; jPlane++) {
+      fGeo >> mulNam;
+      while (strncmp(mulNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>mulNam ;}
+//      if (strncmp(geoNam,"stripplane",10)==0){
+//        std::cout << "expected strippplane, not found exit" << std::endl; 
+//        abort();
+//      }
+      fGeo >> PlaneName >> idPlane >> nStrip >> stripLen >> stripWidth >> stripDir;
+      fGeo >> xyz[0] >> xyz[1] >> xyz[2] >> dist;
+      fGeo.ignore(500,'\n');
+//      std::cout << xyz[0] << " " << xyz[1] << " " << xyz[2] << std::endl;
+
+// PlaneId is convoluted with gapId !!
+      int PlaneId = (idGap-1)*nStripPlane+idPlane;
+// correct for Offsets, valido se piani dato in ordine, correggere......
+      xyz[0]+=xoff[PlaneId-1];
+      xyz[1]+=ChYoff;
+      xyz[2]+=zoff[PlaneId-1]; 
+//      std::cout << xyz[0] << " " << xyz[1] << " " << xyz[2] << std::endl;
+
+// now create the strips    
+//      std::cout << "Chamber2: " << idChamb << " " << PlaneId << "\n";
+      for (int jstrip=0; jstrip<nStrip; jstrip++) { 
+        for(int j=0; j<3; j++) {
+          if(j==stripDir) { 
+            xyzstrip[j]=xyz[j] + (jstrip+0.5)*dist;
+          } else if(j != 1) {
+            // valid only for planes orthogonal to y axis
+            xyzstrip[j]=xyz[j] + stripLen*0.5 ;
+          } else if(j==1) {
+            xyzstrip[j]=xyz[j];
+          }
+        }
+        // set idStrip (use PlaneId)
+        int idFull = 1 + jstrip + 100*PlaneId + 1000*idChamb; 
+//          std::cout << "Chamber3: " << idChamb << " " << jstrip << "\n";
+     
+        gstriplist.push_back(new GeoRPCStrip(idFull,xyzstrip,stripLen,stripWidth,
+					 stripDir));
+      }
+// now create the StripPlane , adding the created strips 
+
+      GeoRPCStripPlane * rpcsp = new GeoRPCStripPlane(PlaneId,idChamb,nStrip,gstriplist,stripLen,
+			  stripWidth,stripDir,ChamberName+"-"+GapName+"-"+PlaneName);
+// add the StripPlane to the Geometry List
+      set(rpcsp);
+      gstriplist.clear();
+      gplanes.push_back(rpcsp);
+    } // end loop on planes 
+// now create the gap, adding the created stripplanes
+    GeoRPCGap * gga=new GeoRPCGap(gplanes,idGap,ChamberName+"-"+GapName);
+    set(gga);
+    gplanes.clear();
+    ggap.push_back(gga);
+  } // end loop on gaps
+
+// finally create new RPC Chamber geometry  
+
+  GeoRPCChamber * gch=new GeoRPCChamber(ggap,idChamb,ChamberName);
+// add to list
+  set(gch);  
+  ggap.clear();    
+// print out if debug
+  if(m_debugLevel>0)gch->printOut();
+}
+
+void GeometryHandler::loadTransform(char fileName[255]){
+/*  char   geoNam[3], dateNam[10], timeNam[5], vecNam[4];
+  int    idMulti,flag,runSta,runEnd;
+  char chComm[]   = "#";
+  std::ifstream fGeo(fileName);
+  //
+  fGeo >> geoNam ;
+  while (strncmp(geoNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>geoNam ;}  
+  fGeo >> idMulti >> flag >> runSta >> runEnd >> dateNam >> timeNam; 
+  fGeo.ignore(500,'\n');
+  //
+  double readin[18];
+  int jj=0;
+  for (int j=0 ; j<3 ; j++) {
+    fGeo >> vecNam;
+    while (strncmp(vecNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>vecNam ;}
+    fGeo >> readin[jj+0] >> readin[jj+1] >> readin[jj+2];
+    fGeo >> readin[jj+3] >> readin[jj+4] >> readin[jj+5]; 
+    fGeo.ignore(500,'\n'); jj += 6;}
+  TVector3 v1 (readin[ 0],readin[ 1],readin[ 2]) ;
+  TVector3 v1p(readin[ 3],readin[ 4],readin[ 5]) ;
+  TVector3 v2 (readin[ 6],readin[ 7],readin[ 8]) ;
+  TVector3 v2p(readin[ 9],readin[10],readin[11]) ;
+  TVector3 v3 (readin[12],readin[13],readin[14]) ;
+  TVector3 v3p(readin[15],readin[16],readin[17]) ;
+  GeoMDTMultiLayer * layerPtr = findMultiLayer(idMulti); 
+  if (layerPtr) {
+    layerPtr->transform(flag,v1,v2,v3,v1p,v2p,v3p);
+  } else {
+    std::cout << "layer " << idMulti << " not found" << std::endl;
+    abort();} */
+}
+
+void GeometryHandler::loadMods(char fileName[255]){
+/*
+  char   geoNam[3], dateNam[10], timeNam[5], modNam[4];
+  int    idTube,flag,runSta,runEnd;
+  double x,y,z,vx,vy,vz;
+  char chComm[]   = "#";
+  std::ifstream fGeo(fileName);
+  //
+  fGeo >> geoNam ;
+  while (strncmp(geoNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>geoNam ;}  
+  fGeo >> runSta >> runEnd >> dateNam >> timeNam; 
+  fGeo.ignore(500,'\n');
+  //
+  while (fGeo.peek()!=EOF){
+    fGeo >> modNam;
+    while (strncmp(modNam,chComm,1)==0) {fGeo.ignore(500,'\n');fGeo>>modNam ;}
+    if    (fGeo.peek()==EOF) break;
+    fGeo >> flag >> idTube >> x >> y >> z >> vx >> vy >> vz; 
+    fGeo.ignore(500,'\n');
+    HepPoint3D xyz(x,y,z); HepVector3D vxyz(vx,vy,vz);
+    int idMulti = idTube / 1000;
+    GeoMDTMultiLayer * layerPtr = findMultiLayer(idMulti);
+    if (layerPtr) {
+      HepTransform3D trans = layerPtr->transform();
+      GeoMDTTube * tubePtr = layerPtr->findTube(idTube);
+      if (tubePtr) {tubePtr->modify(flag,xyz,vxyz,trans);} 
+      else {std::cout << "tube " << idTube << " not found" << std::endl; abort();}} 
+    else {std::cout << "layer " << idMulti << " not found" << std::endl; abort();}}
+*/
+}
+
+std::vector<float> GeometryHandler::XYZOffset(std::string ChName, int tg) const
+{
+   TSQLRow *row;
+   TSQLResult *res;
+   std::vector<float> glob;
+   char s[4];
+  sprintf(s,"%i",tg);
+  std::string stg(s);
+  // query database and print results
+   std::string qq="select * from atlas.alignment WHERE chamber='"+ChName.substr(0,7)+"' and testgroup='"+stg+"'";
+   std::cout << " Chamber: " << ChName << std::endl;  
+   std::cout << " Query: " << qq << std::endl;  
+   const char *sql =qq.c_str();
+//      std::cout << " const char: " << sql << std::endl;  
+
+/*      DA RIMETTERE CON NUOVO SERVER
+
+   res = db->Query(sql);
+
+   int nrows = res->GetRowCount();   
+   if(nrows!=1){
+     std::cout << " error in accessing DB, Chamber " << ChName << " not found, abort" << std::endl;
+	 abort();
+   }
+// get info from row (field=3 to 6 are the Global offsets
+   row = res->Next(); 
+//   std::cout << " Chamber " << row->GetField(0) << std::endl;  
+   for(int i=4; i<7; i++) {    
+     std::cout << " Chamber offset " << row->GetField(i) << std::endl;
+	 glob.push_back(atof(row->GetField(i)));
+   }
+   delete row;
+   delete res;
+   return glob;
+
+*/
+
+
+  if (ChName.substr(0,7)=="BOSA005") {
+
+    glob.push_back(-50);
+    glob.push_back(225);
+    glob.push_back(5);
+
+    std::cout << " Chamber prova Orazio: " << ChName << std::endl;
+    for (std::vector<float>::iterator it = glob.begin(); it != glob.end(); ++it) {
+      std::cout << " Chamber offset " << *it << std::endl;
+    }
+  }
+
+  if (ChName.substr(0,7)=="BOSA006") {
+
+    glob.push_back(-40);
+    glob.push_back(725);
+    glob.push_back(12);
+
+    std::cout << " Chamber prova Orazio: " << ChName << std::endl;
+    for (std::vector<float>::iterator it = glob.begin(); it != glob.end(); ++it) {
+      std::cout << " Chamber offset " << *it << std::endl;
+    }
+  }
+
+  if (ChName.substr(0,7)=="BOSA003") {
+
+    glob.push_back(-25);
+    glob.push_back(3034);
+    glob.push_back(-25);
+
+    std::cout << " Chamber prova Orazio: " << ChName << std::endl;
+    for (std::vector<float>::iterator it = glob.begin(); it != glob.end(); ++it) {
+      std::cout << " Chamber offset " << *it << std::endl;
+    }
+  }
+
+  if (ChName.substr(0,7)=="BOSA001") {
+
+    glob.push_back(-25);
+    glob.push_back(3425);
+    glob.push_back(-25);
+
+    std::cout << " Chamber prova Orazio: " << ChName << std::endl;
+    for (std::vector<float>::iterator it = glob.begin(); it != glob.end(); ++it) {
+      std::cout << " Chamber offset " << *it << std::endl;
+    }
+  }
+
+  if (ChName.substr(0,7)=="BOSC009") {
+
+    glob.push_back(0);
+    glob.push_back(1226);
+    glob.push_back(-5);
+
+    std::cout << " Chamber prova Orazio: " << ChName << std::endl;
+    for (std::vector<float>::iterator it = glob.begin(); it != glob.end(); ++it) {
+      std::cout << " Chamber offset " << *it << std::endl;
+    }
+  }
+
+  return glob;
+}
+
+std::vector<float> GeometryHandler::PlaneOffset(std::string ChName, int tg) const
+{
+  TSQLRow *row;
+  TSQLResult *res;
+  std::vector<float> off;
+  char s[4];
+  sprintf(s,"%i",tg);
+  std::string stg(s);
+  // query database and print results
+   std::string qq="select * from atlas.alignment WHERE chamber='"+ChName.substr(0,7)+"' and testgroup='"+stg+"'";
+//    std::cout << " Chamber: " << ChName << std::endl;  
+//	 std::cout << " Query: " << qq << std::endl;  
+   const char *sql =qq.c_str();
+//      std::cout << " const char: " << sql << std::endl;  
+
+
+/* ============================================ DA REINSERIRE CON NUOVO SERVER - DATABASE
+
+   res = db->Query(sql);
+
+   int nrows = res->GetRowCount();   
+   if(nrows!=1){
+     std::cout << " error in accessing DB, Chamber " << ChName << " not found, abort" << std::endl;
+	 abort();
+   }
+// get info from row (field=3 to 6 are the Global offsets
+   row = res->Next(); 
+//   std::cout << " Chamber " << row->GetField(0) << std::endl;  
+   for(int i=7; i<15; i++) {    
+     std::cout << " Plane offset " << row->GetField(i) << std::endl;
+	 off.push_back(atof(row->GetField(i)));
+   }
+   delete row;
+   delete res;
+  return off;
+
+  */
+  if (ChName.substr(0,7)=="BOSA005") {
+
+    off.push_back(-2.5);
+    off.push_back(-12);
+    off.push_back(-10);
+    off.push_back(-6.5);
+    off.push_back(-2.5);
+    off.push_back(-15);
+    off.push_back(-15);
+    off.push_back(-4);
+
+    std::cout << " Plane prova Orazio: " << ChName << std::endl;
+    for (std::vector<float>::iterator it = off.begin(); it != off.end(); ++it) {
+      std::cout << " Plane offset " << *it << std::endl;
+    }
+  }
+
+  if (ChName.substr(0,7)=="BOSA006") {
+
+    off.push_back(2.5);
+    off.push_back(3);
+    off.push_back(2.5);
+    off.push_back(-2.5);
+    off.push_back(-0.5);
+    off.push_back(3);
+    off.push_back(2.5);
+    off.push_back(-0.5);
+
+
+
+    std::cout << " Plane prova Orazio: " << ChName << std::endl;
+    for (std::vector<float>::iterator it = off.begin(); it != off.end(); ++it) {
+      std::cout << " Plane offset " << *it << std::endl;
+    }
+  }
+
+  if (ChName.substr(0,7)=="BOSA003") {
+
+    off.push_back(2.5);
+    off.push_back(3);
+    off.push_back(3.5);
+    off.push_back(0);
+    off.push_back(2.5);
+    off.push_back(4);
+    off.push_back(3.5);
+    off.push_back(3.5);
+
+
+    std::cout << " Plane prova Orazio: " << ChName << std::endl;
+    for (std::vector<float>::iterator it = off.begin(); it != off.end(); ++it) {
+      std::cout << " Plane offset " << *it << std::endl;
+    }
+  }
+
+  if (ChName.substr(0,7)=="BOSA001") {
+
+    off.push_back(-4);
+    off.push_back(-5.5);
+    off.push_back(-6);
+    off.push_back(0);
+    off.push_back(-5.5);
+    off.push_back(-9);
+    off.push_back(-9);
+    off.push_back(-2);
+
+
+    std::cout << " Plane prova Orazio: " << ChName << std::endl;
+    for (std::vector<float>::iterator it = off.begin(); it != off.end(); ++it) {
+      std::cout << " Plane offset " << *it << std::endl;
+    }
+  }
+
+  if (ChName.substr(0,7)=="BOSC009") {
+
+    off.push_back(1.68457);
+    off.push_back(-3.84377);
+    off.push_back(-500);
+    off.push_back(-500);
+    off.push_back(-0.487994);
+    off.push_back(-9.63309);
+    off.push_back(-9.37028);
+    off.push_back(-0.26909);
+
+
+    std::cout << " Plane prova Orazio: " << ChName << std::endl;
+    for (std::vector<float>::iterator it = off.begin(); it != off.end(); ++it) {
+      std::cout << " Plane offset " << *it << std::endl;
+    }
+  }
+
+  return off;
+}
