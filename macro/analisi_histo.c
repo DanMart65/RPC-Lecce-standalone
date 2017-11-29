@@ -16,7 +16,7 @@ void analisi_histo(int runnumber)
   stringstream ss ;
   ss << runnumber;
   std::string RUNNUMBER = ss.str();
-  FileName="./output/Treerun"+RUNNUMBER+".root";          // ricordarsi di dare il giusto path in base a dove è posizionato il file root di cui ci serviamo
+  FileName="../output/Treerun"+RUNNUMBER+".root";          // ricordarsi di dare il giusto path in base a dove è posizionato il file root di cui ci serviamo
 
 // Apertura file root
   TFile* f = (TFile*)gROOT->FindObject(FileName.c_str()); 
